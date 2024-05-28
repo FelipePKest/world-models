@@ -17,7 +17,7 @@ def generate_data(rollouts, data_dir, noise_type): # pylint: disable=R0914
 
     for i in range(rollouts):
         env.reset()
-        env.env.viewer.window.dispatch_events()
+        # env.env.viewer.window.dispatch_events()
         if noise_type == 'white':
             a_rollout = [env.action_space.sample() for _ in range(seq_len)]
         elif noise_type == 'brown':
@@ -32,12 +32,12 @@ def generate_data(rollouts, data_dir, noise_type): # pylint: disable=R0914
             action = a_rollout[t]
             t += 1
 
-            s, r, done, _ = env.step(action)
-            env.env.viewer.window.dispatch_events()
+            s, r, done, _, _ = env.step(action)
+            # env.env.viewer.window.dispatch_events()
             s_rollout += [s]
             r_rollout += [r]
             d_rollout += [done]
-            if done:
+            if done or t==seq_len:
                 print("> End of rollout {}, {} frames...".format(i, len(s_rollout)))
                 np.savez(join(data_dir, 'rollout_{}'.format(i)),
                          observations=np.array(s_rollout),
