@@ -88,6 +88,8 @@ def train(epoch):
     model.train()
     dataset_train.load_next_buffer()
     train_loss = 0
+    
+
     for batch_idx, data in enumerate(train_loader):
         data = data.to(device)
         optimizer.zero_grad()
@@ -102,9 +104,10 @@ def train(epoch):
                 100. * batch_idx / len(train_loader),
                 loss.item() / len(data)))
 
+    epoch_loss = train_loss / len(train_loader.dataset)
     print('====> Epoch: {} Average loss: {:.4f}'.format(
         epoch, train_loss / len(train_loader.dataset)))
-
+    return epoch_loss
 
 def test():
     """ One test epoch """
@@ -142,8 +145,9 @@ if not args.noreload and exists(reload_file):
 
 cur_best = None
 
+epoch_losses = []
 for epoch in range(1, args.epochs + 1):
-    train(epoch)
+    epoch_losses.append(train(epoch))
     test_loss = test()
     scheduler.step(test_loss)
     earlystopping.step(test_loss)
@@ -176,3 +180,10 @@ for epoch in range(1, args.epochs + 1):
     if earlystopping.stop:
         print("End of Training because of early stopping at epoch {}".format(epoch))
         break
+
+
+# save epochs
+
+with open(vae_dir+"_epoch_losses.txt", "w") as txt_file:
+    for loss in epoch_losses:
+        txt_file.write(" ".join(loss)+ "\n")
