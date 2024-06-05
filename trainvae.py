@@ -186,4 +186,4 @@ for epoch in range(1, args.epochs + 1):
 
 with open(vae_dir+"_epoch_losses.txt", "w") as txt_file:
     for loss in epoch_losses:
-        txt_file.write(" ".join(loss)+ "\n")
+        txt_file.write(" ".join([loss,"\n"]))

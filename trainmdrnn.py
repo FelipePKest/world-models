@@ -33,7 +33,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # constants
 BSIZE = 16
 SEQ_LEN = 32
-epochs = 30
+epochs = 100
 
 # Loading VAE
 vae_file = join(args.logdir, 'vae', 'best.tar')
@@ -197,10 +197,12 @@ def data_pass(epoch, train, include_reward): # pylint: disable=too-many-locals
 train = partial(data_pass, train=True, include_reward=args.include_reward)
 test = partial(data_pass, train=False, include_reward=args.include_reward)
 
+epoch_losses = []
 cur_best = None
 for e in range(epochs):
     train(e)
     test_loss = test(e)
+    epoch_losses.append(test_loss)
     scheduler.step(test_loss)
     earlystopping.step(test_loss)
 
@@ -220,3 +222,8 @@ for e in range(epochs):
     if earlystopping.stop:
         print("End of Training because of early stopping at epoch {}".format(e))
         break
+
+
+with open(rnn_dir+"_epoch_losses.txt", "w") as txt_file:
+    for loss in epoch_losses:
+        txt_file.write(" ".join([str(loss),"\n"]))
