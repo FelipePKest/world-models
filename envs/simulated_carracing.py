@@ -5,11 +5,11 @@ import argparse
 from os.path import join, exists
 import torch
 from torch.distributions.categorical import Categorical
-import gym
-from gym import spaces
-from models.vae import VAE
-from models.mdrnn import MDRNNCell
-from utils.misc import LSIZE, RSIZE, RED_SIZE
+import gymnasium as gym
+from gymnasium import spaces
+from vae import VAE
+from mdrnn import MDRNNCell
+from misc import LSIZE, RSIZE, RED_SIZE
 
 import numpy as np
 

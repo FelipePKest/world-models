@@ -1,16 +1,8 @@
-"""
-Training a linear controller on latent + recurrent state
-with CMAES.
-
-This is a bit complex. num_workers slave threads are launched
-to process a queue filled with parameters to be evaluated.
-"""
 import argparse
 import sys
 from os.path import join, exists
 from os import mkdir, unlink, listdir, getpid
 from time import sleep
-from torch.multiprocessing import Process, Queue
 import torch
 import cma
 from models import Controller
@@ -19,6 +11,9 @@ import numpy as np
 from utils.misc import RolloutGenerator, ASIZE, RSIZE, LSIZE
 from utils.misc import load_parameters
 from utils.misc import flatten_parameters
+import os
+
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 # parsing
 parser = argparse.ArgumentParser()
@@ -33,8 +28,6 @@ parser.add_argument('--display', action='store_true', help="Use progress bars if
 parser.add_argument('--max-workers', type=int, help='Maximum number of workers.',
                     default=32)
 args = parser.parse_args()
-
-# Max number of workers. M
 
 # multiprocessing variables
 n_samples = args.n_samples
@@ -51,68 +44,36 @@ else:
         unlink(join(tmp_dir, fname))
 
 # create ctrl dir if non exitent
+
+print("Creating directories")
+
 ctrl_dir = join(args.logdir, 'ctrl')
 if not exists(ctrl_dir):
     mkdir(ctrl_dir)
 
 
 ################################################################################
-#                           Thread routines                                    #
+#                           Serial routine                                     #
 ################################################################################
-def slave_routine(p_queue, r_queue, e_queue, p_index):
-    """ Thread routine.
+def serial_routine(params, time_limit):
+    """ Serial routine.
 
-    Threads interact with p_queue, the parameters queue, r_queue, the result
-    queue and e_queue the end queue. They pull parameters from p_queue, execute
-    the corresponding rollout, then place the result in r_queue.
+    Executes the corresponding rollout for the given parameters.
 
-    Each parameter has its own unique id. Parameters are pulled as tuples
-    (s_id, params) and results are pushed as (s_id, result).  The same
-    parameter can appear multiple times in p_queue, displaying the same id
-    each time.
+    :args params: parameters to evaluate
+    :args device: the device to use for computation
+    :args time_limit: time limit for the rollout
 
-    As soon as e_queue is non empty, the thread terminate.
-
-    When multiple gpus are involved, the assigned gpu is determined by the
-    process index p_index (gpu = p_index % n_gpus).
-
-    :args p_queue: queue containing couples (s_id, parameters) to evaluate
-    :args r_queue: where to place results (s_id, results)
-    :args e_queue: as soon as not empty, terminate
-    :args p_index: the process index
+    :returns: the result of the rollout
     """
-    # init routine
-    gpu = p_index % torch.cuda.device_count()
-    device = torch.device('cuda:{}'.format(gpu) if torch.cuda.is_available() else 'cpu')
-
-    # redirect streams
-    sys.stdout = open(join(tmp_dir, str(getpid()) + '.out'), 'a')
-    sys.stderr = open(join(tmp_dir, str(getpid()) + '.err'), 'a')
-
     with torch.no_grad():
-        r_gen = RolloutGenerator(args.logdir, device, time_limit)
-
-        while e_queue.empty():
-            if p_queue.empty():
-                sleep(.1)
-            else:
-                s_id, params = p_queue.get()
-                r_queue.put((s_id, r_gen.rollout(params)))
+        r_gen = RolloutGenerator(args.logdir, time_limit=time_limit)
+        result = r_gen.rollout(params)
+    return result
 
 
 ################################################################################
-#                Define queues and start workers                               #
-################################################################################
-p_queue = Queue()
-r_queue = Queue()
-e_queue = Queue()
-
-for p_index in range(num_workers):
-    Process(target=slave_routine, args=(p_queue, r_queue, e_queue, p_index)).start()
-
-
-################################################################################
-#                           Evaluation                                         #
+#                Evaluation                                                    #
 ################################################################################
 def evaluate(solutions, results, rollouts=100):
     """ Give current controller evaluation.
@@ -129,14 +90,9 @@ def evaluate(solutions, results, rollouts=100):
     best_guess = solutions[index_min]
     restimates = []
 
-    for s_id in range(rollouts):
-        p_queue.put((s_id, best_guess))
-
     print("Evaluating...")
     for _ in tqdm(range(rollouts)):
-        while r_queue.empty():
-            sleep(.1)
-        restimates.append(r_queue.get()[1])
+        restimates.append(serial_routine(best_guess, time_limit))
 
     return best_guess, np.mean(restimates), np.std(restimates)
 
@@ -158,7 +114,26 @@ if exists(ctrl_file):
 else: 
     print("Start from scratch")
 parameters = controller.parameters()
-es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1,
-                              {'popsize': pop_size})
+es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1, {'popsize': pop_size})
+print("Start evolution...")
+# Start the evaluation in serial
+# device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-e_queue.put('EOP')
+generations = 5
+for i in range(generations):
+    print(f"Generation {i}")
+    solutions = es.ask()
+    results = []
+
+    print("Starting serial evaluation...")
+    for s_id, solution in enumerate(solutions):
+        result = serial_routine(solution, time_limit)
+        results.append(result)
+        best_guess, mean_reward, std_reward = evaluate(solutions, results)
+        print(f"Best Guess: {best_guess}, Mean Reward: {mean_reward}, Std Reward: {std_reward}")
+    es.tell(solutions, results)
+    es.logger.add()
+    es.disp()
+
+    if es.stop():
+        break

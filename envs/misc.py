@@ -4,7 +4,10 @@ from os.path import join, exists
 import torch
 from torchvision import transforms
 import numpy as np
-from models import MDRNNCell, VAE, Controller
+from controller import Controller
+from vae import VAE
+from mdrnn import MDRNNCell
+
 import gymnasium as gym
 import gymnasium.envs.box2d as box2d
 
@@ -103,7 +106,7 @@ class RolloutGenerator(object):
     :attr device: device used to run VAE, MDRNN and Controller
     :attr time_limit: rollouts have a maximum of time_limit timesteps
     """
-    def __init__(self, mdir, device="cpu", time_limit=1000):
+    def __init__(self, mdir, device, time_limit):
         """ Build vae, rnn, controller and environment. """
         # Loading world model and vae
         vae_file, rnn_file, ctrl_file = \
@@ -137,7 +140,7 @@ class RolloutGenerator(object):
                 ctrl_state['reward']))
             self.controller.load_state_dict(ctrl_state['state_dict'])
 
-        self.env = gym.make('CarRacing-v2', render_mode="rgb_array")
+        self.env = gym.make('CarRacing-v0')
         self.device = device
 
         self.time_limit = time_limit
@@ -176,8 +179,7 @@ class RolloutGenerator(object):
             load_parameters(params, self.controller)
 
         obs = self.env.reset()
-        print("This is ",np.shape(obs[0]))
-        # print("This is obs shape",obs)
+
         # This first render is required !
         self.env.render()
 
@@ -188,9 +190,9 @@ class RolloutGenerator(object):
         cumulative = 0
         i = 0
         while True:
-            obs = transform(obs[0]).unsqueeze(0).to(self.device)
+            obs = transform(obs).unsqueeze(0).to(self.device)
             action, hidden = self.get_action_and_transition(obs, hidden)
-            obs, reward, done, a, b = self.env.step(action)
+            obs, reward, done, _ = self.env.step(action)
 
             if render:
                 self.env.render()
