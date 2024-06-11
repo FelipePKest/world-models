@@ -140,7 +140,7 @@ class RolloutGenerator(object):
                 ctrl_state['reward']))
             self.controller.load_state_dict(ctrl_state['state_dict'])
 
-        self.env = gym.make('CarRacing-v0')
+        self.env = gym.make('CarRacing-v2')
         self.device = device
 
         self.time_limit = time_limit
@@ -159,10 +159,11 @@ class RolloutGenerator(object):
             - action: 1D np array
             - next_hidden (1 x 256) torch tensor
         """
+        print("")
         _, latent_mu, _ = self.vae(obs)
         action = self.controller(latent_mu, hidden[0])
         _, _, _, _, _, next_hidden = self.mdrnn(action, latent_mu, hidden)
-        return action.squeeze().cpu().numpy(), next_hidden
+        return action.squeeze().cpu().detach().numpy(), next_hidden
 
     def rollout(self, params, render=False):
         """ Execute a rollout and returns minus cumulative reward.
@@ -201,3 +202,26 @@ class RolloutGenerator(object):
             if done or i > self.time_limit:
                 return - cumulative
             i += 1
+
+
+r_gen = RolloutGenerator("exp_dir", device="cpu",time_limit=10)
+
+# result = r_gen.rollout(solution)
+obs = r_gen.env.reset()[0]
+print("This is ",np.shape(obs[0]))
+# print("This is obs shape",obs)
+# This first render is required !
+r_gen.env.render()
+
+hidden = [
+    torch.zeros(1, RSIZE).to(r_gen.device)
+    for _ in range(2)]
+
+cumulative = 0
+i = 0
+obs = transform(obs[0]).unsqueeze(0).to(r_gen.device)
+while (i<5):
+    print("obs ",np.shape(obs))
+    action, hidden = r_gen.get_action_and_transition(obs, hidden)
+    obs, reward, done, a, b = r_gen.env.step(action)
+    print("next obs ",np.shape(obs))

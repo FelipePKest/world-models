@@ -160,7 +160,7 @@ class RolloutGenerator(object):
         _, latent_mu, _ = self.vae(obs)
         action = self.controller(latent_mu, hidden[0])
         _, _, _, _, _, next_hidden = self.mdrnn(action, latent_mu, hidden)
-        return action.squeeze().cpu().numpy(), next_hidden
+        return action.squeeze().cpu().detach().numpy(), next_hidden
 
     def rollout(self, params, render=False):
         """ Execute a rollout and returns minus cumulative reward.
@@ -218,7 +218,9 @@ cumulative = 0
 i = 0
 
 obs = transform(obs[0]).unsqueeze(0).to(r_gen.device)
+print("obs ",np.shape(obs))
 action, hidden = r_gen.get_action_and_transition(obs, hidden)
 obs, reward, done, a, b = r_gen.env.step(action)
+print("next obs ",np.shape(obs))
 
 i += 1
