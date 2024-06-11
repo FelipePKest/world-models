@@ -4,6 +4,7 @@ from os.path import join, exists
 from os import mkdir, unlink, listdir, getpid
 from time import sleep
 import torch
+from torchvision import transforms
 import cma
 from models import Controller
 from tqdm import tqdm
@@ -13,8 +14,15 @@ from utils.misc import load_parameters
 from utils.misc import flatten_parameters
 import os
 
-os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+ASIZE, LSIZE, RSIZE, RED_SIZE, SIZE =\
+    3, 32, 256, 64, 64
 
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+transform = transforms.Compose([
+    transforms.ToPILImage(),
+    transforms.Resize((RED_SIZE, RED_SIZE)),
+    transforms.ToTensor()
+])
 # parsing
 parser = argparse.ArgumentParser()
 parser.add_argument('--logdir', type=str, help='Where everything is stored.')
@@ -120,20 +128,54 @@ print("Start evolution...")
 # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 generations = 5
-for i in range(generations):
-    print(f"Generation {i}")
-    solutions = es.ask()
-    results = []
+# for i in range(generations):
+i = 0
+print(f"Generation {i}")
+solutions = es.ask()
+# print(solutions)
+results = []
 
-    print("Starting serial evaluation...")
-    for s_id, solution in enumerate(solutions):
-        result = serial_routine(solution, time_limit)
-        results.append(result)
+
+print("Starting serial evaluation...")
+for s_id, solution in enumerate(solutions):
+    # result = serial_routine(solution, time_limit)
+    with torch.no_grad():
+        r_gen = RolloutGenerator(args.logdir, time_limit=10)
+        # result = r_gen.rollout(solution)
+        obs = r_gen.env.reset()
+        print("This is ",np.shape(obs[0]))
+        # print("This is obs shape",obs)
+        # This first render is required !
+        r_gen.env.render()
+
+        hidden = [
+            torch.zeros(1, RSIZE).to(r_gen.device)
+            for _ in range(2)]
+
+        cumulative = 0
+        i = 0
+
+        while True:
+            print("in while")
+            obs = transform(obs[0]).unsqueeze(0).to(r_gen.device)
+            action, hidden = r_gen.get_action_and_transition(obs, hidden)
+            obs, reward, done, a, b = r_gen.env.step(action)
+
+            # if render:
+            #     r_gen.env.render()
+
+            cumulative += reward
+            if done or i > r_gen.time_limit:
+                # return - cumulative
+                print("Result",-cumulative)
+                results.append(-cumulative)
+            i += 1
+    # results.append(result)
         best_guess, mean_reward, std_reward = evaluate(solutions, results)
         print(f"Best Guess: {best_guess}, Mean Reward: {mean_reward}, Std Reward: {std_reward}")
-    es.tell(solutions, results)
-    es.logger.add()
-    es.disp()
+es.tell(solutions, results)
+es.logger.add()
+es.disp()
 
-    if es.stop():
-        break
+if es.stop():
+    print("stop")
