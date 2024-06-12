@@ -122,60 +122,57 @@ if exists(ctrl_file):
 else: 
     print("Start from scratch")
 parameters = controller.parameters()
+
 es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1, {'popsize': pop_size})
 print("Start evolution...")
-# Start the evaluation in serial
-# device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-generations = 5
-# for i in range(generations):
-i = 0
-print(f"Generation {i}")
-solutions = es.ask()
-# print(solutions)
-results = []
+r_gen = RolloutGenerator(args.logdir, time_limit=100)
+generations = 2000
+for i in range(generations):
+    print(f"Generation {i}")
+    solutions = es.ask()
+    results = []
+    rewards = []
+    print("Starting serial evaluation...")
+    for s_id, solution in enumerate(solutions):
+        # result = serial_routine(solution, time_limit)
+        with torch.no_grad():
 
-
-print("Starting serial evaluation...")
-for s_id, solution in enumerate(solutions):
-    # result = serial_routine(solution, time_limit)
-    with torch.no_grad():
-        r_gen = RolloutGenerator(args.logdir, time_limit=10)
-        # result = r_gen.rollout(solution)
-        obs = r_gen.env.reset()
-        print("This is ",np.shape(obs[0]))
-        # print("This is obs shape",obs)
-        # This first render is required !
-        r_gen.env.render()
-
-        hidden = [
-            torch.zeros(1, RSIZE).to(r_gen.device)
-            for _ in range(2)]
-
-        cumulative = 0
-        i = 0
-
-        while True:
-            print("in while")
+            obs = r_gen.env.reset()
             obs = transform(obs[0]).unsqueeze(0).to(r_gen.device)
-            action, hidden = r_gen.get_action_and_transition(obs, hidden)
-            obs, reward, done, a, b = r_gen.env.step(action)
+        
+            # This first render is required !
+            r_gen.env.render()
 
-            # if render:
-            #     r_gen.env.render()
+            hidden = [
+                torch.zeros(1, RSIZE).to(r_gen.device)
+                for _ in range(2)]
 
-            cumulative += reward
-            if done or i > r_gen.time_limit:
-                # return - cumulative
-                print("Result",-cumulative)
-                results.append(-cumulative)
-            i += 1
-    # results.append(result)
-        best_guess, mean_reward, std_reward = evaluate(solutions, results)
-        print(f"Best Guess: {best_guess}, Mean Reward: {mean_reward}, Std Reward: {std_reward}")
-es.tell(solutions, results)
-es.logger.add()
-es.disp()
+            cumulative = 0
+            i = 0
 
-if es.stop():
-    print("stop")
+            while True:
+                action, hidden = r_gen.get_action_and_transition(obs, hidden)
+                obs, reward, done, a, b = r_gen.env.step(action)
+                obs = transform(obs).unsqueeze(0).to(r_gen.device)
+
+                rewards.append(reward)
+                cumulative += reward
+                if done or i > r_gen.time_limit:
+                    # return - cumulative
+                    results.append(-cumulative)
+                    break
+
+                i += 1
+                # best_guess, mean_reward, std_reward = evaluate(solutions, results)
+    mean_reward = np.mean(rewards)
+    std_reward = np.std(rewards)
+    index_min = np.argmin(results)
+    best_guess = solutions[index_min]
+    print(f" Mean Reward: {mean_reward}, Std Reward: {std_reward}")
+    es.tell(solutions, results)
+    es.logger.add()
+    es.disp()
+
+    if es.stop():
+        print("stop")

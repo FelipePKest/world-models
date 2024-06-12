@@ -156,7 +156,6 @@ class RolloutGenerator(object):
             - action: 1D np array
             - next_hidden (1 x 256) torch tensor
         """
-        print(np.shape(obs))
         _, latent_mu, _ = self.vae(obs)
         action = self.controller(latent_mu, hidden[0])
         _, _, _, _, _, next_hidden = self.mdrnn(action, latent_mu, hidden)
@@ -177,8 +176,6 @@ class RolloutGenerator(object):
             load_parameters(params, self.controller)
 
         obs = self.env.reset()
-        print("This is ",np.shape(obs[0]))
-        # print("This is obs shape",obs)
         # This first render is required !
         self.env.render()
 
@@ -200,27 +197,3 @@ class RolloutGenerator(object):
             if done or i > self.time_limit:
                 return - cumulative
             i += 1
-
-r_gen = RolloutGenerator("exp_dir", time_limit=10)
-
-# result = r_gen.rollout(solution)
-obs = r_gen.env.reset()
-print("This is ",np.shape(obs[0]))
-# print("This is obs shape",obs)
-# This first render is required !
-r_gen.env.render()
-
-hidden = [
-    torch.zeros(1, RSIZE).to(r_gen.device)
-    for _ in range(2)]
-
-cumulative = 0
-i = 0
-
-obs = transform(obs[0]).unsqueeze(0).to(r_gen.device)
-print("obs ",np.shape(obs))
-action, hidden = r_gen.get_action_and_transition(obs, hidden)
-obs, reward, done, a, b = r_gen.env.step(action)
-print("next obs ",np.shape(obs))
-
-i += 1
