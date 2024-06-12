@@ -128,14 +128,15 @@ print("Start evolution...")
 
 r_gen = RolloutGenerator(args.logdir, time_limit=100)
 generations = 2000
-for i in range(generations):
-    print(f"Generation {i}")
+log_step = 3
+for gen in range(generations):
+    print(f"Generation {gen}")
     solutions = es.ask()
     results = []
-    rewards = []
     print("Starting serial evaluation...")
     for s_id, solution in enumerate(solutions):
         # result = serial_routine(solution, time_limit)
+        rewards = []
         with torch.no_grad():
 
             obs = r_gen.env.reset()
@@ -149,7 +150,7 @@ for i in range(generations):
                 for _ in range(2)]
 
             cumulative = 0
-            i = 0
+            gen = 0
 
             while True:
                 action, hidden = r_gen.get_action_and_transition(obs, hidden)
@@ -158,18 +159,38 @@ for i in range(generations):
 
                 rewards.append(reward)
                 cumulative += reward
-                if done or i > r_gen.time_limit:
+                if done or gen > r_gen.time_limit:
                     # return - cumulative
                     results.append(-cumulative)
                     break
 
-                i += 1
+                gen+= 1
                 # best_guess, mean_reward, std_reward = evaluate(solutions, results)
     mean_reward = np.mean(rewards)
     std_reward = np.std(rewards)
     index_min = np.argmin(results)
     best_guess = solutions[index_min]
     print(f" Mean Reward: {mean_reward}, Std Reward: {std_reward}")
+
+    print("Res len",results)
+    if gen % log_step == log_step - 1:
+        # best_params, best, std_best = evaluate(solutions, mean_rewards)
+        print("Current evaluation: {}".format(mean_reward))
+        if not cur_best or cur_best > mean_reward:
+            cur_best = mean_reward
+            print("Saving new best with value {}+-{}...".format(-cur_best, std_reward))
+            load_parameters(best_guess, controller)
+            torch.save(
+                {'epoch': gen,
+                 'reward': - cur_best,
+                 'state_dict': controller.state_dict()},
+                join(ctrl_dir, 'best.tar'))
+        # if - best > args.target_return:
+        #     print("Terminating controller training with value {}...".format(best))
+        #     break
+
+
+    gen += 1
     es.tell(solutions, results)
     es.logger.add()
     es.disp()

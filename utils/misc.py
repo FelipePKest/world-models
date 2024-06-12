@@ -176,6 +176,8 @@ class RolloutGenerator(object):
             load_parameters(params, self.controller)
 
         obs = self.env.reset()
+        obs = transform(obs[0]).unsqueeze(0).to(self.device)
+
         # This first render is required !
         self.env.render()
 
@@ -186,9 +188,9 @@ class RolloutGenerator(object):
         cumulative = 0
         i = 0
         while True:
-            obs = transform(obs[0]).unsqueeze(0).to(self.device)
             action, hidden = self.get_action_and_transition(obs, hidden)
             obs, reward, done, a, b = self.env.step(action)
+            obs = transform(obs).unsqueeze(0).to(self.device)
 
             if render:
                 self.env.render()
