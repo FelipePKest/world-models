@@ -12,6 +12,8 @@ from torchvision.utils import save_image
 
 from models.vae import VAE
 
+import matplotlib.pyplot as plt
+
 from utils.misc import save_checkpoint
 from utils.misc import LSIZE, RED_SIZE
 ## WARNING : THIS SHOULD BE REPLACE WITH PYTORCH 0.5
@@ -186,4 +188,11 @@ for epoch in range(1, args.epochs + 1):
 
 with open(vae_dir+"_epoch_losses.txt", "w") as txt_file:
     for loss in epoch_losses:
-        txt_file.write(" ".join([loss,"\n"]))
+        txt_file.write(" ".join([str(loss),"\n"]))
+
+
+
+fig = plt.figure()
+plt.plot(epoch_losses)
+fig.savefig('VAE_TEST_LOSS.png', dpi=fig.dpi)
+# plt.savefig("VAE_loss.png")
