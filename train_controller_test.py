@@ -127,7 +127,7 @@ es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1, {'popsize': p
 print("Start evolution...")
 
 r_gen = RolloutGenerator(args.logdir, time_limit=100)
-generations = 2000
+generations = 50000
 log_step = 3
 for gen in range(generations):
     print(f"Generation {gen}")
@@ -185,9 +185,9 @@ for gen in range(generations):
                  'reward': - cur_best,
                  'state_dict': controller.state_dict()},
                 join(ctrl_dir, 'best.tar'))
-        # if - best > args.target_return:
-        #     print("Terminating controller training with value {}...".format(best))
-        #     break
+        if - cur_best > args.target_return:
+            print("Terminating controller training with value {}...".format(cur_best))
+            break
 
 
     gen += 1

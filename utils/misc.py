@@ -103,7 +103,7 @@ class RolloutGenerator(object):
     :attr device: device used to run VAE, MDRNN and Controller
     :attr time_limit: rollouts have a maximum of time_limit timesteps
     """
-    def __init__(self, mdir, device="cpu", time_limit=1000):
+    def __init__(self, mdir, device="cpu", time_limit=1000, render_mode="rgb_array"):
         """ Build vae, rnn, controller and environment. """
         # Loading world model and vae
         vae_file, rnn_file, ctrl_file = \
@@ -137,7 +137,7 @@ class RolloutGenerator(object):
                 ctrl_state['reward']))
             self.controller.load_state_dict(ctrl_state['state_dict'])
 
-        self.env = gym.make('CarRacing-v2', render_mode="rgb_array")
+        self.env = gym.make('CarRacing-v2', render_mode=render_mode)
         self.device = device
 
         self.time_limit = time_limit

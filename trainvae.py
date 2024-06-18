@@ -189,10 +189,3 @@ for epoch in range(1, args.epochs + 1):
 with open(vae_dir+"_epoch_losses.txt", "w") as txt_file:
     for loss in epoch_losses:
         txt_file.write(" ".join([str(loss),"\n"]))
-
-
-
-fig = plt.figure()
-plt.plot(epoch_losses)
-fig.savefig('VAE_TEST_LOSS.png', dpi=fig.dpi)
-# plt.savefig("VAE_loss.png")
