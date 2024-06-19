@@ -126,9 +126,12 @@ parameters = controller.parameters()
 es = cma.CMAEvolutionStrategy(flatten_parameters(parameters), 0.1, {'popsize': pop_size})
 print("Start evolution...")
 
-r_gen = RolloutGenerator(args.logdir, time_limit=100)
-generations = 50000
+r_gen = RolloutGenerator(args.logdir, time_limit=1000)
+generations = 20
 log_step = 3
+
+mean_rewards = []
+
 for gen in range(generations):
     print(f"Generation {gen}")
     solutions = es.ask()
@@ -150,45 +153,47 @@ for gen in range(generations):
                 for _ in range(2)]
 
             cumulative = 0
-            gen = 0
 
+            steps = 0
             while True:
                 action, hidden = r_gen.get_action_and_transition(obs, hidden)
+                # print(action)
                 obs, reward, done, a, b = r_gen.env.step(action)
                 obs = transform(obs).unsqueeze(0).to(r_gen.device)
 
                 rewards.append(reward)
                 cumulative += reward
-                if done or gen > r_gen.time_limit:
+                if done or steps > r_gen.time_limit:
                     # return - cumulative
                     results.append(-cumulative)
                     break
-
-                gen+= 1
+                steps+=1
                 # best_guess, mean_reward, std_reward = evaluate(solutions, results)
     mean_reward = np.mean(rewards)
     std_reward = np.std(rewards)
+    mean_rewards.append(mean_reward)
+
     index_min = np.argmin(results)
     best_guess = solutions[index_min]
     print(f" Mean Reward: {mean_reward}, Std Reward: {std_reward}")
 
     print("Res len",results)
-    if gen % log_step == log_step - 1:
+    # if gen % log_step == log_step - 1:
         # best_params, best, std_best = evaluate(solutions, mean_rewards)
-        print("Current evaluation: {}".format(mean_reward))
-        if not cur_best or cur_best > mean_reward:
-            cur_best = mean_reward
-            print("Saving new best with value {}+-{}...".format(-cur_best, std_reward))
-            load_parameters(best_guess, controller)
-            torch.save(
-                {'epoch': gen,
-                 'reward': - cur_best,
-                 'state_dict': controller.state_dict()},
-                join(ctrl_dir, 'best.tar'))
-        if - cur_best > args.target_return:
-            print("Terminating controller training with value {}...".format(cur_best))
-            break
-
+    print("Current evaluation: {}".format(mean_reward))
+    if not cur_best or cur_best > mean_reward:
+        cur_best = mean_reward
+        print("Saving new best with value {}+-{}...".format(-cur_best, std_reward))
+        load_parameters(best_guess, controller)
+        torch.save(
+            {'epoch': gen,
+                'reward': - cur_best,
+                'state_dict': controller.state_dict()},
+            join(ctrl_dir, 'best.tar'))
+    if - cur_best > args.target_return:
+        print("Terminating controller training with value {}...".format(cur_best))
+        break
+    
 
     gen += 1
     es.tell(solutions, results)
@@ -197,3 +202,12 @@ for gen in range(generations):
 
     if es.stop():
         print("stop")
+
+np.save("/home/fpkest/world-models/exp_dir/ctrl_epoch_losses.npy",mean_rewards)
+with open("/home/fpkest/world-models/exp_dir/ctrl_epoch_losses.txt","w") as file:
+    for mr in mean_rewards:
+        txt = str(mr)+"\n"
+        file.write(txt)
+# np.save(mean_rewards)
+# import matplotlib.pyplot as plt
+# plt.plot(mean_rewards)

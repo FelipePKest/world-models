@@ -199,3 +199,4 @@ class RolloutGenerator(object):
             if done or i > self.time_limit:
                 return - cumulative
             i += 1
+        self.env.close()

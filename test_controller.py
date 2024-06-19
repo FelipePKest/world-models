@@ -20,3 +20,5 @@ def test_controller():
 
     with torch.no_grad():
         print(generator.rollout(None, render=True))
+
+test_controller()
