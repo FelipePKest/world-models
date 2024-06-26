@@ -13,7 +13,7 @@ box2d.car_racing.STATE_W, box2d.car_racing.STATE_H = 64, 64
 
 # Hardcoded for now
 ASIZE, LSIZE, RSIZE, RED_SIZE, SIZE =\
-    3, 32, 256, 64, 64
+    3, 64, 256, 64, 64
 
 # Same
 transform = transforms.Compose([
