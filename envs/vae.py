@@ -1,14 +1,14 @@
 
 """
-Variational encoder model, used as a visual model
-for our model of the world.
+Variational autoencoder (VAE), usado como modelo visual 
+para o nosso modelo do mundo.
 """
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 class Decoder(nn.Module):
-    """ VAE decoder """
+    """ Decodificador do VAE """
     def __init__(self, img_channels, latent_size):
         super(Decoder, self).__init__()
         self.latent_size = latent_size
@@ -30,7 +30,7 @@ class Decoder(nn.Module):
         return reconstruction
 
 class Encoder(nn.Module): # pylint: disable=too-many-instance-attributes
-    """ VAE encoder """
+    """ Codificador do VAE """
     def __init__(self, img_channels, latent_size):
         super(Encoder, self).__init__()
         self.latent_size = latent_size
@@ -62,14 +62,14 @@ class VAE(nn.Module):
     """ Variational Autoencoder """
     def __init__(self, img_channels, latent_size):
         super(VAE, self).__init__()
-        self.encoder = Encoder(img_channels, latent_size)
-        self.decoder = Decoder(img_channels, latent_size)
+        self.encoder = Encoder(img_channels, latent_size) # codificador 
+        self.decoder = Decoder(img_channels, latent_size) # decodificador 
 
     def forward(self, x): # pylint: disable=arguments-differ
-        mu, logsigma = self.encoder(x)
-        sigma = logsigma.exp()
-        eps = torch.randn_like(sigma)
-        z = eps.mul(sigma).add_(mu)
+        mu, logsigma = self.encoder(x) # obtem medias e log variancia da codificacao
+        sigma = logsigma.exp() # obtem variancia exponenciando log variancia
+        eps = torch.randn_like(sigma) # amostra da normal com variancia calculada
+        z = eps.mul(sigma).add_(mu) # reparametriza ruido
 
-        recon_x = self.decoder(z)
+        recon_x = self.decoder(z) # reconstroi imagem a partir do ruido gerado
         return recon_x, mu, logsigma

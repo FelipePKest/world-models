@@ -1,6 +1,5 @@
 """
-Define MDRNN model, supposed to be used as a world model
-on the latent space.
+Define o modelo MDRNN, usado como o modulo de memoria no Modelo de Mundo.
 """
 import torch
 import torch.nn as nn
@@ -8,27 +7,21 @@ import torch.nn.functional as f
 from torch.distributions.normal import Normal
 
 def gmm_loss(batch, mus, sigmas, logpi, reduce=True): # pylint: disable=too-many-arguments
-    """ Computes the gmm loss.
+    """
+    Calcula a perda de Mistura de Modelos Gaussianos (GMM).
 
-    Compute minus the log probability of batch under the GMM model described
-    by mus, sigmas, pi. Precisely, with bs1, bs2, ... the sizes of the batch
-    dimensions (several batch dimension are useful when you have both a batch
-    axis and a time step axis), gs the number of mixtures and fs the number of
-    features.
+    Computa o log negativo da probabilidade do `batch` sob o modelo GMM
+    descrito por `mus`, `sigmas` e `logpi`.
 
-    :args batch: (bs1, bs2, *, fs) torch tensor
-    :args mus: (bs1, bs2, *, gs, fs) torch tensor
-    :args sigmas: (bs1, bs2, *, gs, fs) torch tensor
-    :args logpi: (bs1, bs2, *, gs) torch tensor
-    :args reduce: if not reduce, the mean in the following formula is ommited
+    Parâmetros:
+    - batch (torch.Tensor): Tensor de dados com forma (bs1, bs2, ..., fs).
+    - mus (torch.Tensor): Tensor de médias com forma (bs1, bs2, ..., gs, fs).
+    - sigmas (torch.Tensor): Tensor de desvios padrão (bs1, bs2, ..., gs, fs).
+    - logpi (torch.Tensor): Tensor dos logaritmos das probabilidades (bs1, ..., gs).
+    - reduce (bool): Se `True`, retorna a média da perda.
 
-    :returns:
-    loss(batch) = - mean_{i1=0..bs1, i2=0..bs2, ...} log(
-        sum_{k=1..gs} pi[i1, i2, ..., k] * N(
-            batch[i1, i2, ..., :] | mus[i1, i2, ..., k, :], sigmas[i1, i2, ..., k, :]))
-
-    NOTE: The loss is not reduced along the feature dimension (i.e. it should scale ~linearily
-    with fs).
+    Retorno:
+    - torch.Tensor: Perda GMM calculada.
     """
     batch = batch.unsqueeze(-2)
     normal_dist = Normal(mus, sigmas)
@@ -46,6 +39,11 @@ def gmm_loss(batch, mus, sigmas, logpi, reduce=True): # pylint: disable=too-many
     return - log_prob
 
 class _MDRNNBase(nn.Module):
+    """
+    Classe base para MDRNN.
+
+    Define atributos comuns como tamanho dos latentes, ações, estados ocultos e gaussianos.
+    """
     def __init__(self, latents, actions, hiddens, gaussians):
         super().__init__()
         self.latents = latents
@@ -57,28 +55,31 @@ class _MDRNNBase(nn.Module):
             hiddens, (2 * latents + 1) * gaussians + 2)
 
     def forward(self, *inputs):
+        """
+        Método a ser implementado nas subclasses.
+        """
         pass
 
 class MDRNN(_MDRNNBase):
-    """ MDRNN model for multi steps forward """
+    """
+    MDRNN para previsao de multiplos passos.
+
+    Utiliza LSTM para processar sequência de latentes e ações.
+    """
     def __init__(self, latents, actions, hiddens, gaussians):
         super().__init__(latents, actions, hiddens, gaussians)
         self.rnn = nn.LSTM(latents + actions, hiddens)
 
     def forward(self, actions, latents): # pylint: disable=arguments-differ
-        """ MULTI STEPS forward.
+        """Realiza a previsão para múltiplos passos.
 
-        :args actions: (SEQ_LEN, BSIZE, ASIZE) torch tensor
-        :args latents: (SEQ_LEN, BSIZE, LSIZE) torch tensor
+        Parâmetros:
+        - actions (torch.Tensor): Ações com forma (SEQ_LEN, BSIZE, ASIZE).
+        - latents (torch.Tensor): Latentes com forma (SEQ_LEN, BSIZE, LSIZE).
 
-        :returns: mu_nlat, sig_nlat, pi_nlat, rs, ds, parameters of the GMM
-        prediction for the next latent, gaussian prediction of the reward and
-        logit prediction of terminality.
-            - mu_nlat: (SEQ_LEN, BSIZE, N_GAUSS, LSIZE) torch tensor
-            - sigma_nlat: (SEQ_LEN, BSIZE, N_GAUSS, LSIZE) torch tensor
-            - logpi_nlat: (SEQ_LEN, BSIZE, N_GAUSS) torch tensor
-            - rs: (SEQ_LEN, BSIZE) torch tensor
-            - ds: (SEQ_LEN, BSIZE) torch tensor
+        :returns:
+        - mus, sigmas, logpi, rs, ds: parâmetros GMM, previsao da reward e previsão do terminal.
+
         """
         seq_len, bs = actions.size(0), actions.size(1)
 
@@ -106,26 +107,24 @@ class MDRNN(_MDRNNBase):
         return mus, sigmas, logpi, rs, ds
 
 class MDRNNCell(_MDRNNBase):
-    """ MDRNN model for one step forward """
+    """  
+    MDRNN para um único passo.
+
+    Utiliza LSTMCell para previsão em uma única etapa. 
+    """
     def __init__(self, latents, actions, hiddens, gaussians):
         super().__init__(latents, actions, hiddens, gaussians)
         self.rnn = nn.LSTMCell(latents + actions, hiddens)
 
     def forward(self, action, latent, hidden): # pylint: disable=arguments-differ
-        """ ONE STEP forward.
+        """  Realiza a previsão para um único passo.
 
-        :args actions: (BSIZE, ASIZE) torch tensor
-        :args latents: (BSIZE, LSIZE) torch tensor
-        :args hidden: (BSIZE, RSIZE) torch tensor
+        Parâmetros:
+        - action (torch.Tensor): Ação com forma (BSIZE, ASIZE).
+        - latent (torch.Tensor): Latente com forma (BSIZE, LSIZE).
+        - hidden (tuple): Estado oculto da LSTM com (BSIZE, RSIZE).
 
-        :returns: mu_nlat, sig_nlat, pi_nlat, r, d, next_hidden, parameters of
-        the GMM prediction for the next latent, gaussian prediction of the
-        reward, logit prediction of terminality and next hidden state.
-            - mu_nlat: (BSIZE, N_GAUSS, LSIZE) torch tensor
-            - sigma_nlat: (BSIZE, N_GAUSS, LSIZE) torch tensor
-            - logpi_nlat: (BSIZE, N_GAUSS) torch tensor
-            - rs: (BSIZE) torch tensor
-            - ds: (BSIZE) torch tensor
+        :returns: - mus, sigmas, logpi, r, d, next_hidden: parâmetros GMM previsao da reward previsão do terminal próximos estados.
         """
         in_al = torch.cat([action, latent], dim=1)
 

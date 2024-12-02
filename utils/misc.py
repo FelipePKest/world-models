@@ -1,21 +1,28 @@
-""" Various auxiliary utilities """
+""" 
+Várias utilidades auxiliares para suportar o treinamento e avaliação do modelo do mundo. 
+Inclui amostragem de políticas, salvamento/carregamento de checkpoints, manipulação de parâmetros 
+e geração de rollouts usando VAE, MDRNN e um controlador no ambiente CarRacing. 
+"""
 import math
 from os.path import join, exists
 import torch
 from torchvision import transforms
 import numpy as np
-from models import MDRNNCell, VAE, Controller
+from controller import Controller
+from vae import VAE
+from mdrnn import MDRNNCell
+
 import gymnasium as gym
 import gymnasium.envs.box2d as box2d
 
-# A bit dirty: manually change size of car racing env
+# Modifica o tamanho da representação de estado do ambiente CarRacing
 box2d.car_racing.STATE_W, box2d.car_racing.STATE_H = 64, 64
 
-# Hardcoded for now
+# Constantes que definem os tamanhos das ações, latentes, estados ocultos e imagens reduzidas
 ASIZE, LSIZE, RSIZE, RED_SIZE, SIZE =\
     3, 32, 256, 64, 64
 
-# Same
+# Pipeline de transformação de imagem para observações do ambiente CarRacing
 transform = transforms.Compose([
     transforms.ToPILImage(),
     transforms.Resize((RED_SIZE, RED_SIZE)),
@@ -23,16 +30,13 @@ transform = transforms.Compose([
 ])
 
 def sample_continuous_policy(action_space, seq_len, dt):
-    """ Sample a continuous policy.
-
-    Atm, action_space is supposed to be a box environment. The policy is
-    sampled as a brownian motion a_{t+1} = a_t + sqrt(dt) N(0, 1).
-
-    :args action_space: gym action space
-    :args seq_len: number of actions returned
-    :args dt: temporal discretization
-
-    :returns: sequence of seq_len actions
+    """ Roda uma etapa da politica simulada por um movimento browniano
+    Args:
+        action_space: Espaço de ação do Gym.
+        seq_len: Número de ações na sequência.
+        dt: Discretização temporal.
+    Returns:
+        Lista de ações amostradas da política.
     """
     actions = [action_space.sample()]
     for _ in range(seq_len):
@@ -43,30 +47,37 @@ def sample_continuous_policy(action_space, seq_len, dt):
     return actions
 
 def save_checkpoint(state, is_best, filename, best_filename):
-    """ Save state in filename. Also save in best_filename if is_best. """
+    """ 
+    Salva o estado atual em um arquivo e atualiza o melhor checkpoint quando for o caso 
+    Args:
+        state: Estado a ser salvo.
+        is_best: Indica se este é o melhor estado.
+        filename: Caminho para salvar o estado atual.
+        best_filename: Caminho para salvar o melhor estado.
+    """
     torch.save(state, filename)
     if is_best:
         torch.save(state, best_filename)
 
 def flatten_parameters(params):
-    """ Flattening parameters.
-
-    :args params: generator of parameters (as returned by module.parameters())
-
-    :returns: flattened parameters (i.e. one tensor of dimension 1 with all
-        parameters concatenated)
+    """ 
+    Achata os parâmetros do modelo em um único tensor 1D. 
+    Args:
+        params: Gerador de parâmetros do modelo.
+    Returns:
+        Array 1D numpy com os parâmetros achatados.
     """
     return torch.cat([p.detach().view(-1) for p in params], dim=0).cpu().numpy()
 
 def unflatten_parameters(params, example, device):
-    """ Unflatten parameters.
-
-    :args params: parameters as a single 1D np array
-    :args example: generator of parameters (as returned by module.parameters()),
-        used to reshape params
-    :args device: where to store unflattened parameters
-
-    :returns: unflattened parameters
+    """ 
+    Restaura os parâmetros aos formatos originais. 
+    Args:
+        params: Array 1D numpy de parâmetros achatados.
+        example: Gerador de parâmetros com os formatos originais.
+        device: Dispositivo onde os parâmetros serão colocados.
+    Returns:
+        Lista de tensores com os parâmetros no formato original.
     """
     params = torch.Tensor(params).to(device)
     idx = 0
@@ -77,10 +88,11 @@ def unflatten_parameters(params, example, device):
     return unflattened
 
 def load_parameters(params, controller):
-    """ Load flattened parameters into controller.
-
-    :args params: parameters as a single 1D np array
-    :args controller: module in which params is loaded
+    """ 
+    Carrega parâmetros achatados no modulo Controller. 
+    Args:
+        params: Array 1D numpy de parâmetros.
+        controller: Modelo onde os parâmetros serão carregados.
     """
     proto = next(controller.parameters())
     params = unflatten_parameters(
@@ -90,10 +102,8 @@ def load_parameters(params, controller):
         p.data.copy_(p_0)
 
 class RolloutGenerator(object):
-    """ Utility to generate rollouts.
-
-    Encapsulate everything that is needed to generate rollouts in the TRUE ENV
-    using a controller with previously trained VAE and MDRNN.
+    """ 
+    Gera os rollouts como exemplos usando os modulos de Visao e Memoria previamente treinados
 
     :attr vae: VAE model loaded from mdir/vae
     :attr mdrnn: MDRNN model loaded from mdir/mdrnn
@@ -143,18 +153,13 @@ class RolloutGenerator(object):
         self.time_limit = time_limit
 
     def get_action_and_transition(self, obs, hidden):
-        """ Get action and transition.
-
-        Encode obs to latent using the VAE, then obtain estimation for next
-        latent and next hidden state using the MDRNN and compute the controller
-        corresponding action.
-
-        :args obs: current observation (1 x 3 x 64 x 64) torch tensor
-        :args hidden: current hidden state (1 x 256) torch tensor
-
-        :returns: (action, next_hidden)
-            - action: 1D np array
-            - next_hidden (1 x 256) torch tensor
+        """ 
+        Codifica a observação e computa a ação e próximo estado oculto. 
+        Args:
+            obs: Tensor da observação atual.
+            hidden: Tensor do estado oculto atual.
+        Returns:
+            Tupla contendo a ação e o próximo estado oculto.
         """
         _, latent_mu, _ = self.vae(obs)
         action = self.controller(latent_mu, hidden[0])
@@ -162,15 +167,15 @@ class RolloutGenerator(object):
         return action.squeeze().cpu().detach().numpy(), next_hidden
 
     def rollout(self, params, render=False):
-        """ Execute a rollout and returns minus cumulative reward.
-
-        Load :params: into the controller and execute a single rollout. This
-        is the main API of this class.
-
-        :args params: parameters as a single 1D np array
-
-        :returns: minus cumulative reward
+        """ 
+        Executa um rollout e retorna a recompensa cumulativa negativa. 
+        Args:
+            params: Array 1D numpy de parâmetros do controlador.
+            render: Booleano para ativar a renderização do ambiente.
+        Returns:
+            Recompensa cumulativa negativa.
         """
+
         # copy params into the controller
         if params is not None:
             load_parameters(params, self.controller)
@@ -199,4 +204,4 @@ class RolloutGenerator(object):
             if done or i > self.time_limit:
                 return - cumulative
             i += 1
-        self.env.close()
+

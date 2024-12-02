@@ -1,4 +1,4 @@
-""" Recurrent model training """
+""" Treinamento de modelo recorrente """
 import argparse
 from functools import partial
 from os.path import join, exists
@@ -12,41 +12,39 @@ from tqdm import tqdm
 from utils.misc import save_checkpoint
 from utils.misc import ASIZE, LSIZE, RSIZE, RED_SIZE, SIZE
 from utils.learning import EarlyStopping
-## WARNING : THIS SHOULD BE REPLACED WITH PYTORCH 0.5
+## ATENÇÃO: ISSO DEVE SER SUBSTITUÍDO POR PYTORCH 0.5
 from utils.learning import ReduceLROnPlateau
 
 from data.loaders import RolloutSequenceDataset
 from models.vae import VAE
 from models.mdrnn import MDRNN, gmm_loss
 
-parser = argparse.ArgumentParser("MDRNN training")
+parser = argparse.ArgumentParser("Treinamento MDRNN")
 parser.add_argument('--logdir', type=str,
-                    help="Where things are logged and models are loaded from.")
+                    help="Onde os logs são armazenados e os modelos são carregados.")
 parser.add_argument('--noreload', action='store_true',
-                    help="Do not reload if specified.")
+                    help="Não recarregar se especificado.")
 parser.add_argument('--include_reward', action='store_true',
-                    help="Add a reward modelisation term to the loss.")
+                    help="Adicionar um termo de modelagem de recompensa à perda.")
 args = parser.parse_args()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# constants
+# Constantes
 BSIZE = 16
 SEQ_LEN = 32
 epochs = 100
 
-# Loading VAE
+# Carregando VAE
 vae_file = join(args.logdir, 'vae', 'best.tar')
-assert exists(vae_file), "No trained VAE in the logdir..."
+assert exists(vae_file), "Nenhum VAE treinado no diretório de logs..."
 state = torch.load(vae_file)
-print("Loading VAE at epoch {} "
-      "with test error {}".format(
-          state['epoch'], state['precision']))
+print(f"Carregando VAE na época {state['epoch']} com erro de teste {state['precision']}")
 
 vae = VAE(3, LSIZE).to(device)
 vae.load_state_dict(state['state_dict'])
 
-# Loading model
+# Carregando modelo MDRNN
 rnn_dir = join(args.logdir, 'mdrnn')
 rnn_file = join(rnn_dir, 'best.tar')
 
@@ -55,25 +53,20 @@ if not exists(rnn_dir):
 
 mdrnn = MDRNN(LSIZE, ASIZE, RSIZE, 5)
 mdrnn.to(device)
-optimizer = torch.optim.RMSprop(mdrnn.parameters(), lr=1e-3, alpha=.9)
+optimizer = torch.optim.RMSprop(mdrnn.parameters(), lr=1e-3, alpha=0.9)
 scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=5)
 earlystopping = EarlyStopping('min', patience=30)
 
-
 if exists(rnn_file) and not args.noreload:
     rnn_state = torch.load(rnn_file)
-    print("Loading MDRNN at epoch {} "
-          "with test error {}".format(
-              rnn_state["epoch"], rnn_state["precision"]))
+    print(f"Carregando MDRNN na época {rnn_state['epoch']} com erro de teste {rnn_state['precision']}")
     mdrnn.load_state_dict(rnn_state["state_dict"])
     optimizer.load_state_dict(rnn_state["optimizer"])
     scheduler.load_state_dict(state['scheduler'])
     earlystopping.load_state_dict(state['earlystopping'])
 
-
-# Data Loading
-transform = transforms.Lambda(
-    lambda x: np.transpose(x, (0, 3, 1, 2)) / 255)
+# Carregamento dos dados
+transform = transforms.Lambda(lambda x: np.transpose(x, (0, 3, 1, 2)) / 255)
 train_loader = DataLoader(
     RolloutSequenceDataset('datasets/carracing', SEQ_LEN, transform, buffer_size=30),
     batch_size=BSIZE, num_workers=8, shuffle=True)
@@ -82,14 +75,14 @@ test_loader = DataLoader(
     batch_size=BSIZE, num_workers=8)
 
 def to_latent(obs, next_obs):
-    """ Transform observations to latent space.
+    """ Transforma as observações para o espaço latente.
 
-    :args obs: 5D torch tensor (BSIZE, SEQ_LEN, ASIZE, SIZE, SIZE)
-    :args next_obs: 5D torch tensor (BSIZE, SEQ_LEN, ASIZE, SIZE, SIZE)
+    :args obs: tensor 5D torch (BSIZE, SEQ_LEN, ASIZE, SIZE, SIZE)
+    :args next_obs: tensor 5D torch (BSIZE, SEQ_LEN, ASIZE, SIZE, SIZE)
 
     :returns: (latent_obs, latent_next_obs)
-        - latent_obs: 4D torch tensor (BSIZE, SEQ_LEN, LSIZE)
-        - next_latent_obs: 4D torch tensor (BSIZE, SEQ_LEN, LSIZE)
+        - latent_obs: tensor 4D torch (BSIZE, SEQ_LEN, LSIZE)
+        - next_latent_obs: tensor 4D torch (BSIZE, SEQ_LEN, LSIZE)
     """
     with torch.no_grad():
         obs, next_obs = [
@@ -106,24 +99,25 @@ def to_latent(obs, next_obs):
             [(obs_mu, obs_logsigma), (next_obs_mu, next_obs_logsigma)]]
     return latent_obs, latent_next_obs
 
+
 def get_loss(latent_obs, action, reward, terminal,
              latent_next_obs, include_reward: bool):
-    """ Compute losses.
+    """ Calcular as perdas.
 
-    The loss that is computed is:
-    (GMMLoss(latent_next_obs, GMMPredicted) + MSE(reward, predicted_reward) +
+    A perda que é calculada é:
+    (GMMLoss(latent_next_obs, GMMPredicted) + MSE(recompensa, recompensa_predita) +
          BCE(terminal, logit_terminal)) / (LSIZE + 2)
-    The LSIZE + 2 factor is here to counteract the fact that the GMMLoss scales
-    approximately linearily with LSIZE. All losses are averaged both on the
-    batch and the sequence dimensions (the two first dimensions).
+    O fator LSIZE + 2 é usado para compensar o fato de que o GMMLoss escala
+    aproximadamente de forma linear com LSIZE. Todas as perdas são médias tanto nas dimensões
+    do lote quanto da sequência (as duas primeiras dimensões).
 
-    :args latent_obs: (BSIZE, SEQ_LEN, LSIZE) torch tensor
-    :args action: (BSIZE, SEQ_LEN, ASIZE) torch tensor
-    :args reward: (BSIZE, SEQ_LEN) torch tensor
-    :args latent_next_obs: (BSIZE, SEQ_LEN, LSIZE) torch tensor
+    :args latent_obs: tensor torch (BSIZE, SEQ_LEN, LSIZE)
+    :args acao: tensor torch (BSIZE, SEQ_LEN, ASIZE)
+    :args recompensa: tensor torch (BSIZE, SEQ_LEN)
+    :args latent_next_obs: tensor torch (BSIZE, SEQ_LEN, LSIZE)
 
-    :returns: dictionary of losses, containing the gmm, the mse, the bce and
-        the averaged loss.
+    :returns: dicionário de perdas, contendo o gmm, o mse, o bce e
+        a perda média.
     """
     latent_obs, action,\
         reward, terminal,\
@@ -145,7 +139,7 @@ def get_loss(latent_obs, action, reward, terminal,
 
 
 def data_pass(epoch, train, include_reward): # pylint: disable=too-many-locals
-    """ One pass through the data """
+    """ Uma passada pelos dados """
     if train:
         mdrnn.train()
         loader = train_loader
@@ -220,7 +214,7 @@ for e in range(epochs):
                     rnn_file)
 
     if earlystopping.stop:
-        print("End of Training because of early stopping at epoch {}".format(e))
+        print(f"Fim do treinamento devido ao early stopping na época {e}")
         break
 
 

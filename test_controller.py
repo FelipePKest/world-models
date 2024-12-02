@@ -5,10 +5,6 @@ from utils.misc import RolloutGenerator
 import torch
 
 def test_controller():
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--logdir', type=str, help='Where models are stored.')
-    # args = parser.parse_args()
-
     ctrl_file = join("exp_dir", 'ctrl', 'best.tar')
 
     assert exists(ctrl_file),\
