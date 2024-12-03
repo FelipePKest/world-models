@@ -3,6 +3,8 @@
 Paper: Ha and Schmidhuber, "World Models" [1], 2018. https://doi.org/10.5281/zenodo.1207631. Para mais detalhes ver [github page](https://ctallec.github.io/world-models/).
 
 
+![alt text](https://github.com/FelipePKest/world-models/blob/main/docs/img/archfig.png)
+
 ## Configurações
 
 Esse projeto requer o uso da linguagem Python3.10. 
@@ -26,6 +28,8 @@ O modelo é composto por três partes:
   3. Um Controlador Linear (C), que utiliza como entrada tanto a codificação latente do quadro atual quanto o estado oculto da MDN-RNN, considerando os latentes e ações passados, e gera uma ação como saída. Ele é treinado para maximizar a recompensa acumulada usando a Covariance-Matrix Adaptation Evolution Strategy (CMA-ES) [4] do pacote cma em Python
 
 Nesse projeto, as três seções são treinadas de maneira separada, usando os programas `trainvae.py`, `trainmdrnn.py` and `traincontroller.py`. 
+
+![alt text](https://github.com/FelipePKest/world-models/blob/main/docs/world-models.jpg)
 
 Os scripts de treinamento recebem os seguintes argumentos:
 * **--logdir** : O diretorio onde os modelos serão salvos. Caso os arquivos dos modelos ja existam, o treinamento resume do ponto onde foi parado.
@@ -69,10 +73,6 @@ python test_controller.py --logdir exp_dir
 ```
 
 # Referências
-
-* **Corentin Tallec** - [ctallec](https://github.com/ctallec)
-* **Léonard Blier** - [leonardblier](https://github.com/leonardblier)
-* **Diviyan Kalainathan** - [diviyan-kalainathan](https://github.com/diviyan-kalainathan)
 
 [1] Ha, D. and Schmidhuber, J. World Models, 2018
 
