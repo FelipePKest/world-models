@@ -1,84 +1,90 @@
-# Pytorch implementation of the "WorldModels"
+# Implementacao e trabalho sobre artigo "WorldModels"
 
-Paper: Ha and Schmidhuber, "World Models", 2018. https://doi.org/10.5281/zenodo.1207631. For a quick summary of the paper and some additional experiments, visit the [github page](https://ctallec.github.io/world-models/).
+Paper: Ha and Schmidhuber, "World Models", 2018. https://doi.org/10.5281/zenodo.1207631. Para mais detalhes ver [github page](https://ctallec.github.io/world-models/).
 
 
-## Prerequisites
+## Configurações
 
-The implementation is based on Python3 and PyTorch, check their website [here](https://pytorch.org) for installation instructions. The rest of the requirements is included in the [requirements file](requirements.txt), to install them:
-```bash
+Esse projeto requer o uso da linguagem Python3.10. 
+
+Para executar os programas contidos nesse projeto, antes é necessário a instalacao das dependencias do mesmo. Isso pode ser feito atraves do ambiente Anaconda (https://www.anaconda.com/) ou através do pip. 
+Para instalar as dependências, basta rodar o comando
+
+```
 pip3 install -r requirements.txt
 ```
 
-## Running the worldmodels
+em um terminal associado.
 
-The model is composed of three parts:
+Esse projeto também faz o uso da biblioteca PyTorch. Para detalhes sobre sua instalação, visitar o site (https://pytorch.org)
 
-  1. A Variational Auto-Encoder (VAE), whose task is to compress the input images into a compact latent representation.
-  2. A Mixture-Density Recurrent Network (MDN-RNN), trained to predict the latent encoding of the next frame given past latent encodings and actions.
-  3. A linear Controller (C), which takes both the latent encoding of the current frame, and the hidden state of the MDN-RNN given past latents and actions as input and outputs an action. It is trained to maximize the cumulated reward using the Covariance-Matrix Adaptation Evolution-Strategy ([CMA-ES](http://www.cmap.polytechnique.fr/~nikolaus.hansen/cmaartic.pdf)) from the `cma` python package.
+## Executando o worldmodels
 
-In the given code, all three sections are trained separately, using the scripts `trainvae.py`, `trainmdrnn.py` and `traincontroller.py`.
+O modelo é composto por três partes:
+  1. Um Autoencoder Variacional (VAE), cuja função é comprimir as imagens de entrada em uma representação latente compacta.
+  2. Uma Rede Recorrente de Mistura de Densidade (MDN-RNN), treinada para prever a codificação latente do próximo quadro com base nas codificações latentes passadas e nas ações.
+  3. Um Controlador Linear (C), que utiliza como entrada tanto a codificação latente do quadro atual quanto o estado oculto da MDN-RNN, considerando os latentes e ações passados, e gera uma ação como saída. Ele é treinado para maximizar a recompensa acumulada usando a Covariance-Matrix Adaptation Evolution Strategy (CMA-ES) do pacote cma em Python
 
-Training scripts take as argument:
-* **--logdir** : The directory in which the models will be stored. If the logdir specified already exists, it loads the old model and continues the training.
-* **--noreload** : If you want to override a model in *logdir* instead of reloading it, add this option.
+Nesse projeto, as três seções são treinadas de maneira separada, usando os programas `trainvae.py`, `trainmdrnn.py` and `traincontroller.py`. 
 
-### 1. Data generation
-Before launching the VAE and MDN-RNN training scripts, you need to generate a dataset of random rollouts and place it in the `datasets/carracing` folder.
+Os scripts de treinamento recebem os seguintes argumentos:
+* **--logdir** : O diretorio onde os modelos serão salvos. Caso os arquivos dos modelos ja existam, o treinamento resume do ponto onde foi parado.
+* **--noreload** : Caso se deseja reiniciar um treinamento nos modelos localizados no *logdir*, basta configurar esse argumento como true .
 
-Data generation is handled through the `data/generation_script.py` script, e.g.
+### 1. Geracao dos dados
+
+Antes de treinar os modelos VAE e MDN-RNN, é necessario gerar um dataset para servir como os dados a serem utilizados para o treino dos mesmos. Esses dados são armazenados no diretorio `datasets/carracing`.
+
+Isso é feito através do script `data/generation_script.py`.
+
 ```bash
 python data/generation_script.py --rollouts 1000 --rootdir datasets/carracing --threads 8
 ```
 
-Rollouts are generated using a *brownian* random policy, instead of the *white noise* random `action_space.sample()` policy from gym, providing more consistent rollouts.
+Os dados são gerados a partir de uma politica de movimento *browniano*.
 
-### 2. Training the VAE
-The VAE is trained using the `trainvae.py` file, e.g.
+### 2. Treinando o VAE
+
+Com os dados gerados, podemos comecar treinando o VAE, rodando o comando:
 ```bash
 python trainvae.py --logdir exp_dir
 ```
 
-### 3. Training the MDN-RNN
-The MDN-RNN is trained using the `trainmdrnn.py` file, e.g.
+### 3. Treinando o MDN-RNN
+A MDN-RNN é treinada pelo arquivo `trainmdrnn.py`.
 ```bash
 python trainmdrnn.py --logdir exp_dir
 ```
-A VAE must have been trained in the same `exp_dir` for this script to work.
-### 4. Training and testing the Controller
-Finally, the controller is trained using CMA-ES, e.g.
+É necessario haver treinado um modelo VAE no mesmo diretório `exp_dir` para esse codigo funcionar adequadamente.
+
+### 4. Treinando e testando o Controller
+Por fim, um Controller é treinado pelo arquivo `traincontroller.py`, e.g.
 ```bash
 python traincontroller.py --logdir exp_dir --n-samples 4 --pop-size 4 --target-return 950 --display
 ```
-You can test the obtained policy with `test_controller.py` e.g.
+
+Com o Controller treinado, pode-se testar a política treinada pelo arquivo `test_controller.py` e.g.
 ```bash
 python test_controller.py --logdir exp_dir
 ```
 
-### Notes
-When running on a headless server, you will need to use `xvfb-run` to launch the controller training script. For instance,
-```bash
-xvfb-run -s "-screen 0 1400x900x24" python traincontroller.py --logdir exp_dir --n-samples 4 --pop-size 4 --target-return 950 --display
-```
-If you do not have a display available and you launch `traincontroller` without
-`xvfb-run`, the script will fail silently (but logs are available in
-`logdir/tmp`).
-
-Be aware that `traincontroller` requires heavy gpu memory usage when launched
-on gpus. To reduce the memory load, you can directly modify the maximum number
-of workers by specifying the `--max-workers` argument.
-
-If you have several GPUs available, `traincontroller` will take advantage of
-all gpus specified by `CUDA_VISIBLE_DEVICES`.
-
-## Authors
+# Referências
 
 * **Corentin Tallec** - [ctallec](https://github.com/ctallec)
 * **Léonard Blier** - [leonardblier](https://github.com/leonardblier)
 * **Diviyan Kalainathan** - [diviyan-kalainathan](https://github.com/diviyan-kalainathan)
 
+[1] Ha, D. and Schmidhuber, J. World Models, 2018
 
+[2] Kingma, D., Auto-Encoding Variational Bayes, 2014
+
+[3] Graves, A., Generating Sequences With Recurrent Neural Networks, 2013
+
+[4] Hansen, N., The CMA evolution strategy: a comparing review, 2006
+
+[5] Irpan, A., [Deep Reinforcement Learning Doesn't Work Yet](https://www.alexirpan.com/2018/02/14/rl-hard.html), 2018
+
+[6] Henderson, P. Islam, R. Bachman, P. Pineau, J. Precup, D. Meger, D., Deep Reinforcement Learning that Matters, 2017
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
