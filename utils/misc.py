@@ -8,9 +8,10 @@ from os.path import join, exists
 import torch
 from torchvision import transforms
 import numpy as np
-from controller import Controller
-from vae import VAE
-from mdrnn import MDRNNCell
+
+from utils.controller import Controller
+from utils.vae import VAE
+from utils.mdrnn import MDRNNCell
 
 import gymnasium as gym
 import gymnasium.envs.box2d as box2d
