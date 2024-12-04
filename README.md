@@ -7,7 +7,9 @@ Paper: Ha and Schmidhuber, "World Models" [1], 2018. https://doi.org/10.5281/zen
 
 ## Configurações
 
-Esse projeto requer o uso da linguagem Python3.10. 
+Esse projeto requer o uso da linguagem Python3.10.
+
+Para melhor visualizacao dos testes do modelo, é recomendado o desenvolvimento no sistema operacional Linux.
 
 Para executar os programas contidos nesse projeto, antes é necessário a instalacao das dependencias do mesmo. Isso pode ser feito atraves do ambiente Anaconda (https://www.anaconda.com/) ou através do pip. 
 Para instalar as dependências, basta rodar o comando
@@ -45,6 +47,11 @@ Isso é feito através do script `data/generation_script.py`.
 python data/generation_script.py --rollouts 1000 --rootdir datasets/carracing --threads 8
 ```
 
+Esse script recebe os seguintes argumentos:
+* **--rollouts** : Quantos exemplos a serem gerados pela politica 
+* **--rootdir** : O diretorio raiz onde serao salvos os dados de rollout
+* **--threads** : Quantas threads serão criadas para paralelizar a geracao dos dados
+
 Os dados são gerados a partir de uma politica de movimento *browniano*.
 
 ### 2. Treinando o VAE
@@ -71,6 +78,7 @@ Com o Controller treinado, pode-se testar a política treinada pelo arquivo `tes
 ```bash
 python test_controller.py --logdir exp_dir
 ```
+
 
 # Referências
 
