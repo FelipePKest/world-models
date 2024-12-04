@@ -73,6 +73,10 @@ Por fim, um Controller é treinado pelo arquivo `traincontroller.py`, e.g.
 ```bash
 python traincontroller.py --logdir exp_dir --n-samples 4 --pop-size 4 --target-return 950 --display
 ```
+Esse script recebe os seguintes argumentos:
+* **--n-samples** : Quantos amostras a serem analisadas pela polução da estratégia evolucionária 
+* **--pop-size** : Qual o tamanho da população da estratégia evolucionária
+* **--target-return** : Qual valor de recompensa a ser buscado para o algoritmo interromper a execução.
 
 Com o Controller treinado, pode-se testar a política treinada pelo arquivo `test_controller.py` e.g.
 ```bash
