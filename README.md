@@ -1,4 +1,4 @@
-# Implementacao e trabalho sobre artigo "WorldModels"
+# World Models: Uma implementação detalhada e documentada sobre model-based Reinforcement Learning
 
 Paper: Ha and Schmidhuber, "World Models" [1], 2018. https://doi.org/10.5281/zenodo.1207631. Para mais detalhes ver [github page](https://ctallec.github.io/world-models/).
 
