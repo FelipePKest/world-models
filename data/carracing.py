@@ -1,6 +1,5 @@
 """
-Generating data from the CarRacing gym environment.
-!!! DOES NOT WORK ON TITANIC, DO IT AT HOME, THEN SCP !!!
+Geracao de dados do ambiente CarRacing gym .
 """
 import argparse
 from os.path import join, exists
@@ -38,7 +37,7 @@ def generate_data(rollouts, data_dir, noise_type): # pylint: disable=R0914
             r_rollout += [r]
             d_rollout += [done]
             if done or t==seq_len:
-                print("> End of rollout {}, {} frames...".format(i, len(s_rollout)))
+                print("> Fim do rollout {}, {} frames...".format(i, len(s_rollout)))
                 np.savez(join(data_dir, 'rollout_{}'.format(i)),
                          observations=np.array(s_rollout),
                          rewards=np.array(r_rollout),
@@ -48,10 +47,10 @@ def generate_data(rollouts, data_dir, noise_type): # pylint: disable=R0914
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--rollouts', type=int, help="Number of rollouts")
-    parser.add_argument('--dir', type=str, help="Where to place rollouts")
+    parser.add_argument('--rollouts', type=int, help="Numero de rollouts")
+    parser.add_argument('--dir', type=str, help="Aonde armazenar")
     parser.add_argument('--policy', type=str, choices=['white', 'brown'],
-                        help='Noise type used for action sampling.',
+                        help='Qual tipo de ruido para simular a politica.',
                         default='brown')
     args = parser.parse_args()
     generate_data(args.rollouts, args.dir, args.policy)

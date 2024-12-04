@@ -1,5 +1,5 @@
 """
-Encapsulate generate data to make it parallel
+Script para usar paralelismo na geracao de rolllouts
 """
 from os import makedirs
 from os.path import join
@@ -8,10 +8,9 @@ from multiprocessing import Pool
 from subprocess import call
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--rollouts', type=int, help="Total number of rollouts.")
-parser.add_argument('--threads', type=int, help="Number of threads")
-parser.add_argument('--rootdir', type=str, help="Directory to store rollout "
-                    "directories of each thread")
+parser.add_argument('--rollouts', type=int, help="Numero de rollouts.")
+parser.add_argument('--threads', type=int, help="Numero de  threads")
+parser.add_argument('--rootdir', type=str, help="Directorio a armazenar rollout ")
 parser.add_argument('--policy', type=str, choices=['brown', 'white'],
                     help="Directory to store rollout directories of each thread",
                     default='brown')

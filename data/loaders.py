@@ -1,4 +1,4 @@
-""" Some data loading utilities """
+""" Utilitarios para armazenar e carregar rollouts """
 from bisect import bisect
 from os import listdir
 from os.path import join, isdir

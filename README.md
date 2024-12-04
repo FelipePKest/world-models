@@ -1,11 +1,15 @@
-# Implementacao e trabalho sobre artigo "WorldModels"
+# World Models: Uma implementação detalhada e documentada sobre model-based Reinforcement Learning
 
-Paper: Ha and Schmidhuber, "World Models", 2018. https://doi.org/10.5281/zenodo.1207631. Para mais detalhes ver [github page](https://ctallec.github.io/world-models/).
+Paper: Ha and Schmidhuber, "World Models" [1], 2018. https://doi.org/10.5281/zenodo.1207631. Para mais detalhes ver [github page](https://ctallec.github.io/world-models/).
 
+
+![alt text](https://github.com/FelipePKest/world-models/blob/main/docs/img/archfig.png)
 
 ## Configurações
 
-Esse projeto requer o uso da linguagem Python3.10. 
+Esse projeto requer o uso da linguagem Python3.10.
+
+Para melhor visualizacao dos testes do modelo, é recomendado o desenvolvimento no sistema operacional Linux.
 
 Para executar os programas contidos nesse projeto, antes é necessário a instalacao das dependencias do mesmo. Isso pode ser feito atraves do ambiente Anaconda (https://www.anaconda.com/) ou através do pip. 
 Para instalar as dependências, basta rodar o comando
@@ -21,11 +25,13 @@ Esse projeto também faz o uso da biblioteca PyTorch. Para detalhes sobre sua in
 ## Executando o worldmodels
 
 O modelo é composto por três partes:
-  1. Um Autoencoder Variacional (VAE), cuja função é comprimir as imagens de entrada em uma representação latente compacta.
-  2. Uma Rede Recorrente de Mistura de Densidade (MDN-RNN), treinada para prever a codificação latente do próximo quadro com base nas codificações latentes passadas e nas ações.
-  3. Um Controlador Linear (C), que utiliza como entrada tanto a codificação latente do quadro atual quanto o estado oculto da MDN-RNN, considerando os latentes e ações passados, e gera uma ação como saída. Ele é treinado para maximizar a recompensa acumulada usando a Covariance-Matrix Adaptation Evolution Strategy (CMA-ES) do pacote cma em Python
+  1. Um Autoencoder Variacional (VAE)[2], cuja função é comprimir as imagens de entrada em uma representação latente compacta.
+  2. Uma Rede Recorrente de Mistura de Densidade (MDN-RNN)[3], treinada para prever a codificação latente do próximo quadro com base nas codificações latentes passadas e nas ações.
+  3. Um Controlador Linear (C), que utiliza como entrada tanto a codificação latente do quadro atual quanto o estado oculto da MDN-RNN, considerando os latentes e ações passados, e gera uma ação como saída. Ele é treinado para maximizar a recompensa acumulada usando a Covariance-Matrix Adaptation Evolution Strategy (CMA-ES) [4] do pacote cma em Python
 
 Nesse projeto, as três seções são treinadas de maneira separada, usando os programas `trainvae.py`, `trainmdrnn.py` and `traincontroller.py`. 
+
+![alt text](https://github.com/FelipePKest/world-models/blob/main/docs/world-models.jpg)
 
 Os scripts de treinamento recebem os seguintes argumentos:
 * **--logdir** : O diretorio onde os modelos serão salvos. Caso os arquivos dos modelos ja existam, o treinamento resume do ponto onde foi parado.
@@ -40,6 +46,11 @@ Isso é feito através do script `data/generation_script.py`.
 ```bash
 python data/generation_script.py --rollouts 1000 --rootdir datasets/carracing --threads 8
 ```
+
+Esse script recebe os seguintes argumentos:
+* **--rollouts** : Quantos exemplos a serem gerados pela politica 
+* **--rootdir** : O diretorio raiz onde serao salvos os dados de rollout
+* **--threads** : Quantas threads serão criadas para paralelizar a geracao dos dados
 
 Os dados são gerados a partir de uma politica de movimento *browniano*.
 
@@ -62,17 +73,18 @@ Por fim, um Controller é treinado pelo arquivo `traincontroller.py`, e.g.
 ```bash
 python traincontroller.py --logdir exp_dir --n-samples 4 --pop-size 4 --target-return 950 --display
 ```
+Esse script recebe os seguintes argumentos:
+* **--n-samples** : Quantos amostras a serem analisadas pela polução da estratégia evolucionária 
+* **--pop-size** : Qual o tamanho da população da estratégia evolucionária
+* **--target-return** : Qual valor de recompensa a ser buscado para o algoritmo interromper a execução.
 
 Com o Controller treinado, pode-se testar a política treinada pelo arquivo `test_controller.py` e.g.
 ```bash
 python test_controller.py --logdir exp_dir
 ```
 
-# Referências
 
-* **Corentin Tallec** - [ctallec](https://github.com/ctallec)
-* **Léonard Blier** - [leonardblier](https://github.com/leonardblier)
-* **Diviyan Kalainathan** - [diviyan-kalainathan](https://github.com/diviyan-kalainathan)
+# Referências
 
 [1] Ha, D. and Schmidhuber, J. World Models, 2018
 
@@ -82,9 +94,6 @@ python test_controller.py --logdir exp_dir
 
 [4] Hansen, N., The CMA evolution strategy: a comparing review, 2006
 
-[5] Irpan, A., [Deep Reinforcement Learning Doesn't Work Yet](https://www.alexirpan.com/2018/02/14/rl-hard.html), 2018
-
-[6] Henderson, P. Islam, R. Bachman, P. Pineau, J. Precup, D. Meger, D., Deep Reinforcement Learning that Matters, 2017
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
